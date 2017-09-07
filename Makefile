@@ -17,7 +17,7 @@ group=$(shell id -g -n)
 
 export GOBIN=$(PWD)/bin
 
-LD_FLAGS="-w -X $(REPO_PATH)/version.Version=$(VERSION)"
+LD_FLAGS="-w -s -X $(REPO_PATH)/version.Version=$(VERSION)"
 
 build: bin/dex bin/example-app bin/grpc-client
 
