@@ -801,14 +801,14 @@ func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsF
 }
 
 type crossClientsFixture struct {
-	provider          *oidc.Provider
-	client            *storage.Client
-	peer              *storage.Client
-	oauth2Server      *httptest.Server
+	provider     *oidc.Provider
+	client       *storage.Client
+	peer         *storage.Client
+	oauth2Server *httptest.Server
 }
 
 type crossClientsTestDeferred struct {
-	oauth2Config      *oauth2.Config
+	oauth2Config *oauth2.Config
 }
 
 func TestCrossClientScopes(t *testing.T) {
@@ -839,11 +839,11 @@ func TestCrossClientScopes(t *testing.T) {
 			t.Fatalf("get failed: %v", err)
 		}
 		reqDump, err2 := httputil.DumpRequest(resp.Request, false)
-		if  err2 != nil {
+		if err2 != nil {
 			t.Fatal(err2)
 		}
 		respDump, err3 := httputil.DumpResponse(resp, true)
-		if  err3 != nil {
+		if err3 != nil {
 			t.Fatal(err3)
 		}
 
@@ -878,11 +878,11 @@ func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
 			t.Fatalf("get failed: %v", err)
 		}
 		reqDump, err2 := httputil.DumpRequest(resp.Request, false)
-		if  err2 != nil {
+		if err2 != nil {
 			t.Fatal(err2)
 		}
 		respDump, err3 := httputil.DumpResponse(resp, true)
-		if  err3 != nil {
+		if err3 != nil {
 			t.Fatal(err3)
 		}
 
