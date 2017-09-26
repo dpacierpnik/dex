@@ -328,8 +328,10 @@ func (s *Server) newIDToken(clientID string, claims storage.Claims, scopes []str
 		// client as the audience.
 		tok.Audience = audience{clientID}
 	} else {
-		// Client asked for cross client audience. The current client
-		// becomes the authorizing party.
+		// Client asked for cross client audience:
+		// The current client becomes one of entries in Audience
+		// tok.Audience = append(tok.Audience, clientID)
+		// The current client becomes the authorizing party.
 		tok.AuthorizingParty = clientID
 	}
 

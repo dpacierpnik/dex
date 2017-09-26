@@ -21,12 +21,12 @@ import (
 	"testing"
 	"time"
 
-	oidc "github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	jose "gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coreos/dex/connector"
 	"github.com/coreos/dex/connector/mock"
@@ -690,7 +690,8 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	}
 }
 
-func TestCrossClientScopes(t *testing.T) {
+func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsFixture, *crossClientsTestDeferred)) {
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -704,12 +705,16 @@ func TestCrossClientScopes(t *testing.T) {
 		t.Fatalf("failed to get provider: %v", err)
 	}
 
+	fixture := crossClientsFixture{}
+	testDeferred := crossClientsTestDeferred{}
+
 	var (
-		reqDump, respDump []byte
-		gotCode           bool
-		state             = "a_state"
+		gotCode bool
+		state   = "a_state"
 	)
 	defer func() {
+		reqDump := testDeferred.reqDump
+		respDump := testDeferred.respDump
 		if !gotCode {
 			t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
 		}
@@ -718,8 +723,10 @@ func TestCrossClientScopes(t *testing.T) {
 	testClientID := "testclient"
 	peerID := "peer"
 
-	var oauth2Config *oauth2.Config
 	oauth2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		oauth2Config := testDeferred.oauth2Config
+
 		if r.URL.Path == "/callback" {
 			q := r.URL.Query()
 			if errType := q.Get("error"); errType != "" {
@@ -766,6 +773,8 @@ func TestCrossClientScopes(t *testing.T) {
 		http.Redirect(w, r, oauth2Config.AuthCodeURL(state), http.StatusSeeOther)
 	}))
 
+	fixture.oauth2Server = oauth2Server
+
 	defer oauth2Server.Close()
 
 	redirectURL := oauth2Server.URL + "/callback"
@@ -777,6 +786,7 @@ func TestCrossClientScopes(t *testing.T) {
 	if err := s.storage.CreateClient(client); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
+	fixture.client = &client
 
 	peer := storage.Client{
 		ID:           peerID,
@@ -787,29 +797,61 @@ func TestCrossClientScopes(t *testing.T) {
 	if err := s.storage.CreateClient(peer); err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}
+	fixture.peer = &peer
 
-	oauth2Config = &oauth2.Config{
-		ClientID:     client.ID,
-		ClientSecret: client.Secret,
-		Endpoint:     p.Endpoint(),
-		Scopes: []string{
-			oidc.ScopeOpenID, "profile", "email",
-			"audience:server:client_id:" + client.ID,
-			"audience:server:client_id:" + peer.ID,
-		},
-		RedirectURL: redirectURL,
-	}
+	crossClientsTest(fixture, &testDeferred)
+}
 
-	resp, err := http.Get(oauth2Server.URL + "/login")
-	if err != nil {
-		t.Fatalf("get failed: %v", err)
-	}
-	if reqDump, err = httputil.DumpRequest(resp.Request, false); err != nil {
-		t.Fatal(err)
-	}
-	if respDump, err = httputil.DumpResponse(resp, true); err != nil {
-		t.Fatal(err)
-	}
+type crossClientsFixture struct {
+	provider          *oidc.Provider
+	client            *storage.Client
+	peer              *storage.Client
+	oauth2Server      *httptest.Server
+}
+
+type crossClientsTestDeferred struct {
+	oauth2Config      *oauth2.Config
+	reqDump, respDump []byte
+}
+
+func TestCrossClientScopes(t *testing.T) {
+
+	setupCrossClientsFixture(t, func(fixture *crossClientsFixture, testDeferred *crossClientsTestDeferred) {
+
+		provider := fixture.provider
+		client := fixture.client
+		peer := fixture.peer
+		oauth2Server := fixture.oauth2Server
+
+		oauth2Config := &oauth2.Config{
+			ClientID:     client.ID,
+			ClientSecret: client.Secret,
+			Endpoint:     provider.Endpoint(),
+			Scopes: []string{
+				oidc.ScopeOpenID, "profile", "email",
+				"audience:server:client_id:" + client.ID,
+				"audience:server:client_id:" + peer.ID,
+			},
+			RedirectURL: client.RedirectURIs[0],
+		}
+
+		testDeferred.oauth2Config = oauth2Config
+
+		resp, err := http.Get(oauth2Server.URL + "/login")
+		if err != nil {
+			t.Fatalf("get failed: %v", err)
+		}
+		reqDump, err2 := httputil.DumpRequest(resp.Request, false)
+		testDeferred.reqDump = reqDump
+		if  err2 != nil {
+			t.Fatal(err2)
+		}
+		respDump, err3 := httputil.DumpResponse(resp, true)
+		testDeferred.respDump = respDump
+		if  err3 != nil {
+			t.Fatal(err3)
+		}
+	})
 }
 
 func TestPasswordDB(t *testing.T) {
