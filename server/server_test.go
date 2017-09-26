@@ -690,10 +690,13 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	}
 }
 
-func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsFixture, *crossClientsTestDeferred)) {
+func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsFixture, *crossClientsTestDeferred) (reqDump, respDump []byte)) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	fixture := crossClientsFixture{}
+	testDeferred := crossClientsTestDeferred{}
 
 	httpServer, s := newTestServer(ctx, t, func(c *Config) {
 		c.Issuer = c.Issuer + "/non-root-path"
@@ -704,21 +707,12 @@ func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsF
 	if err != nil {
 		t.Fatalf("failed to get provider: %v", err)
 	}
-
-	fixture := crossClientsFixture{}
-	testDeferred := crossClientsTestDeferred{}
+	fixture.provider = p
 
 	var (
 		gotCode bool
 		state   = "a_state"
 	)
-	defer func() {
-		reqDump := testDeferred.reqDump
-		respDump := testDeferred.respDump
-		if !gotCode {
-			t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
-		}
-	}()
 
 	testClientID := "testclient"
 	peerID := "peer"
@@ -799,7 +793,11 @@ func setupCrossClientsFixture(t *testing.T, crossClientsTest func(*crossClientsF
 	}
 	fixture.peer = &peer
 
-	crossClientsTest(fixture, &testDeferred)
+	reqDump, respDump := crossClientsTest(&fixture, &testDeferred)
+
+	if !gotCode {
+		t.Errorf("never got a code in callback\n%s\n%s", reqDump, respDump)
+	}
 }
 
 type crossClientsFixture struct {
@@ -811,12 +809,11 @@ type crossClientsFixture struct {
 
 type crossClientsTestDeferred struct {
 	oauth2Config      *oauth2.Config
-	reqDump, respDump []byte
 }
 
 func TestCrossClientScopes(t *testing.T) {
 
-	setupCrossClientsFixture(t, func(fixture *crossClientsFixture, testDeferred *crossClientsTestDeferred) {
+	setupCrossClientsFixture(t, func(fixture *crossClientsFixture, testDeferred *crossClientsTestDeferred) (reqDump, respDump []byte) {
 
 		provider := fixture.provider
 		client := fixture.client
@@ -842,15 +839,15 @@ func TestCrossClientScopes(t *testing.T) {
 			t.Fatalf("get failed: %v", err)
 		}
 		reqDump, err2 := httputil.DumpRequest(resp.Request, false)
-		testDeferred.reqDump = reqDump
 		if  err2 != nil {
 			t.Fatal(err2)
 		}
 		respDump, err3 := httputil.DumpResponse(resp, true)
-		testDeferred.respDump = respDump
 		if  err3 != nil {
 			t.Fatal(err3)
 		}
+
+		return reqDump, respDump
 	})
 }
 
