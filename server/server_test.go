@@ -851,6 +851,45 @@ func TestCrossClientScopes(t *testing.T) {
 	})
 }
 
+func TestCrossClientScopesWithAzpInAudienceByDefault(t *testing.T) {
+
+	setupCrossClientsFixture(t, func(fixture *crossClientsFixture, testDeferred *crossClientsTestDeferred) (reqDump, respDump []byte) {
+
+		provider := fixture.provider
+		client := fixture.client
+		peer := fixture.peer
+		oauth2Server := fixture.oauth2Server
+
+		oauth2Config := &oauth2.Config{
+			ClientID:     client.ID,
+			ClientSecret: client.Secret,
+			Endpoint:     provider.Endpoint(),
+			Scopes: []string{
+				oidc.ScopeOpenID, "profile", "email",
+				"audience:server:client_id:" + peer.ID,
+			},
+			RedirectURL: client.RedirectURIs[0],
+		}
+
+		testDeferred.oauth2Config = oauth2Config
+
+		resp, err := http.Get(oauth2Server.URL + "/login")
+		if err != nil {
+			t.Fatalf("get failed: %v", err)
+		}
+		reqDump, err2 := httputil.DumpRequest(resp.Request, false)
+		if  err2 != nil {
+			t.Fatal(err2)
+		}
+		respDump, err3 := httputil.DumpResponse(resp, true)
+		if  err3 != nil {
+			t.Fatal(err3)
+		}
+
+		return reqDump, respDump
+	})
+}
+
 func TestPasswordDB(t *testing.T) {
 	s := memory.New(logger)
 	conn := newPasswordDB(s)
