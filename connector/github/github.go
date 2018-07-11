@@ -63,7 +63,7 @@ type Org struct {
 }
 
 // Open returns a strategy for logging in through GitHub.
-func (c *Config) Open(logger logrus.FieldLogger) (connector.Connector, error) {
+func (c *Config) Open(id string, logger logrus.FieldLogger) (connector.Connector, error) {
 
 	if c.Org != "" {
 		// Return error if both 'org' and 'orgs' fields are used.
@@ -457,7 +457,7 @@ func (c *githubConnector) user(ctx context.Context, client *http.Client) (user, 
 		return u, err
 	}
 
-	// Only pulic user emails are returned by 'GET /user'. u.Email will be empty
+	// Only public user emails are returned by 'GET /user'. u.Email will be empty
 	// if a users' email is private. We must retrieve private emails explicitly.
 	if u.Email == "" {
 		var err error
@@ -503,13 +503,13 @@ func (c *githubConnector) userEmail(ctx context.Context, client *http.Client) (s
 				advised them not to check for verified emails
 				(https://circleci.com/enterprise/changelog/#1-47-1).
 				In addition, GitHub Enterprise support replied to a support
-				ticket with "There is no way to verify an email address in 
-				GitHub Enterprise."			
+				ticket with "There is no way to verify an email address in
+				GitHub Enterprise."
 			*/
 			if c.hostName != "" {
 				email.Verified = true
 			}
-			
+
 			if email.Verified && email.Primary {
 				return email.Email, nil
 			}
